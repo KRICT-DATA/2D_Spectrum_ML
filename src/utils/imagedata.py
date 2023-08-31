@@ -6,13 +6,14 @@ import numpy as np
 
 class SpectrumImageDataset(Dataset):
     def __init__(self, upscale_factor, data_augmentation=False, 
-                 channels=3, mode='histogram'):
+                 channels=3, window_size=0, mode='histogram'):
         
         super(SpectrumImageDataset, self).__init__()
         self.augmentation = data_augmentation
         self.upscale_factor = upscale_factor
         self.channels = channels
         self.mode = mode
+        self.window_size = window_size
 
         self.xs = {}
         self.infos = []
@@ -55,11 +56,18 @@ class SpectrumImageDataset(Dataset):
             n = np.sum(mask)
             mask[np.argsort(vars)[-n-128+n%128:-n]] = True
 
+        n, h, w = inp.shape
+        if self.window_size != 0:
+            h_pad = (h // self.window_size + 1) * self.window_size - h
+            w_pad = (w // self.window_size + 1) * self.window_size - w
+            inp = np.concatenate([inp, np.flip(inp, 1)], 1)[:, :h+h_pad, :]
+            inp = np.concatenate([inp, np.flip(inp, 2)], 2)[:, :, :w+w_pad]
+            
         _x = convert_to_image(inp, None, upscale_factor=self.upscale_factor, channels=self.channels)
 
         imgs_inp, imgs_tgt, imgs_bic = _x
         for i in np.where(mask)[0]:
-            self.infos.append([None, None, vmin, vmax, xs[i]])
+            self.infos.append([None, None, vmin, vmax, xs[i], h*self.upscale_factor, w*self.upscale_factor])
             self.inputs.append(imgs_inp[i])
             self.targets.append(imgs_tgt[i])
             self.bicubics.append(imgs_bic[i])

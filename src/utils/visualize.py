@@ -5,7 +5,8 @@ from .spectrum import norm_spectrum
  
 def super_resolution_summary(x, y, x_inp=None, y_inp=None, 
                              locs=[624, 634, 644, 654], intensity_range=None, 
-                             cmap=mpl.cm.inferno, figsize=(4,4), fontsize=14):
+                             cmap=mpl.cm.inferno, figsize=(4,4), fontsize=14,
+                             scalebar='horizontal'):
     xs = [x]
     ys = [y]
     vmin, vmax, _ = norm_spectrum(y, num_bit=0)
@@ -15,15 +16,17 @@ def super_resolution_summary(x, y, x_inp=None, y_inp=None,
         vmin = int(vmin / 1000) * 1000
         vmax = int(vmax / 1000) * 1000 + (1000 if vmax % 1000 != 0 else 0)
 
+    lbls = ['SR']
     if x_inp is not None and y_inp is not None:
         xs = [x_inp, x]
         ys = [y_inp, y]
-    
+        lbls = ['Orig.', 'SR']
+
     f, axs = plt.subplots(len(xs), len(locs), figsize=(figsize[0]*len(locs), figsize[1]*len(xs)))
     axs = axs.reshape(len(xs), len(locs))
-    for i, (_x, _y) in enumerate(zip(xs, ys)):
+    for i, (_x, _y, lbl) in enumerate(zip(xs, ys, lbls)):
         _, n1, n2 = _y.shape
-        axs[i, 0].set_ylabel(f'{n1}x{n2}', fontsize=fontsize)
+        axs[i, 0].set_ylabel(f'{lbl}: {n1}x{n2}', fontsize=fontsize)
 
         for j, loc in enumerate(locs):
             k = np.argmin(np.abs(_x - loc))
@@ -36,15 +39,17 @@ def super_resolution_summary(x, y, x_inp=None, y_inp=None,
 
     f.subplots_adjust(wspace=0.05, hspace=0.02)
     
-    f1, ax1 = plt.subplots(1,1,figsize=(4,0.3))
-    plt.colorbar(im, cax=ax1, orientation='horizontal')
-    ax1.set_yticks([])
-    ax1.set_xlabel('Intensity', fontsize=fontsize)
-    f2, ax2 = plt.subplots(1,1,figsize=(0.3,4))
-    plt.colorbar(im, cax=ax2)
-    ax2.set_xticks([])
-    ax2.set_ylabel('Intensity', fontsize=fontsize)
-    return f, f1, f2
+    if isinstance(scalebar, str) and scalebar.lower().startswith('v'):
+        f1, ax1 = plt.subplots(1,1,figsize=(0.3,4))
+        plt.colorbar(im, cax=ax1)
+        ax1.set_xticks([])
+        ax1.set_ylabel('Intensity', fontsize=fontsize)
+    else:
+        f1, ax1 = plt.subplots(1,1,figsize=(4,0.3))
+        plt.colorbar(im, cax=ax1, orientation='horizontal')
+        ax1.set_yticks([])
+        ax1.set_xlabel('Intensity', fontsize=fontsize)
+    return f, f1
 
 def clustering_summary(tsne_vector, labels, 
                        figsize=(12,5.5), gridspec_kw={'width_ratios':[1,1,0.05]},
