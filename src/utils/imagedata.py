@@ -5,14 +5,14 @@ import torch
 import numpy as np
 
 class SpectrumImageDataset(Dataset):
-    def __init__(self, upscale_factor, data_augmentation=False, 
-                 channels=3, window_size=0, mode='histogram'):
+    def __init__(self, upscale_factor, data_augmentation=False, channels=3, window_size=0,
+                 norm_params={'vmin' : None, 'vmax':None, 'n':2000, 'min_count':3, 'mode':'histogram', 'num_bit':256, 'extend_bit':True}):
         
         super(SpectrumImageDataset, self).__init__()
         self.augmentation = data_augmentation
         self.upscale_factor = upscale_factor
         self.channels = channels
-        self.mode = mode
+        self.norm_params = norm_params
         self.window_size = window_size
 
         self.xs = {}
@@ -36,7 +36,7 @@ class SpectrumImageDataset(Dataset):
         if len(shape) == 4:
             inp = inp[..., 0]
 
-        vmin, vmax, inp = norm_spectrum(inp, ref=inp, mode=self.mode)
+        vmin, vmax, inp = norm_spectrum(inp, ref=inp, **self.norm_params)
 
         xs = x.copy()
         mask = np.ones(n, dtype=bool)
@@ -50,7 +50,7 @@ class SpectrumImageDataset(Dataset):
 
         if variance_masking:
             vars = np.var(inp.reshape(n, -1), axis=1)
-            hist, bins = np.histogram(vars, bins=2000)
+            hist, bins = np.histogram(vars/vars.max(), bins=50)
             bins = (bins[1:] + bins[:-1]) * 0.5
             mask = vars > bins[np.argmax(hist)]
             n = np.sum(mask)
@@ -62,10 +62,13 @@ class SpectrumImageDataset(Dataset):
             w_pad = (w // self.window_size + 1) * self.window_size - w
             inp = np.concatenate([inp, np.flip(inp, 1)], 1)[:, :h+h_pad, :]
             inp = np.concatenate([inp, np.flip(inp, 2)], 2)[:, :, :w+w_pad]
-            
-        _x = convert_to_image(inp, None, upscale_factor=self.upscale_factor, channels=self.channels)
-
-        imgs_inp, imgs_tgt, imgs_bic = _x
+        
+        if is_target:
+            imgs_inp, imgs_tgt, imgs_bic = convert_to_image(None, inp, upscale_factor=self.upscale_factor, channels=self.channels)
+        else:
+            imgs_inp, imgs_tgt, imgs_bic = convert_to_image(inp, None, upscale_factor=self.upscale_factor, channels=self.channels)
+        
+        self.xs['None'] = xs
         for i in np.where(mask)[0]:
             self.infos.append([None, None, vmin, vmax, xs[i], h*self.upscale_factor, w*self.upscale_factor])
             self.inputs.append(imgs_inp[i])
